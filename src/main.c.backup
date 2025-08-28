@@ -1,0 +1,161 @@
+#include <stdint.h>
+#include "SMSlib.h"
+
+// Rectangle properties
+#define RECT_WIDTH 32
+#define RECT_HEIGHT 16
+#define SCREEN_WIDTH 256
+#define SCREEN_HEIGHT 192
+
+// Rectangle state
+int16_t rect_x = 50;     // Starting X position
+int16_t rect_y = 50;     // Starting Y position
+int8_t velocity_x = 2;   // X velocity (45 degree movement)
+int8_t velocity_y = 2;   // Y velocity (45 degree movement)
+uint8_t rect_color = 0;  // Current rectangle color index
+uint8_t flash_timer = 0; // Timer for yellow flash effect
+
+// Color palette for rectangle cycling
+const uint8_t colors[] = {
+    RGB(3, 3, 3), // White
+    RGB(3, 0, 0), // Red
+    RGB(0, 3, 0), // Green
+    RGB(0, 0, 3), // Blue
+    RGB(3, 3, 0), // Yellow
+    RGB(3, 0, 3), // Magenta
+    RGB(0, 3, 3)  // Cyan
+};
+
+void main(void)
+{
+    // Initialize the system - this approach will definitely work
+    SMS_VRAMmemsetW(0, 0x0000, 16384);
+    SMS_autoSetUpTextRenderer(); // This we know works from our test
+
+    // Create a solid white tile for our rectangle
+    const uint8_t white_tile[] = {
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+    // Load the white tile pattern
+    SMS_loadTiles(white_tile, 1, sizeof(white_tile));
+
+    // Set up background palette - tile 1 will use color 1
+    SMS_setBGPaletteColor(0, RGB(0, 0, 0));       // Black background
+    SMS_setBGPaletteColor(1, colors[rect_color]); // Rectangle color
+
+    // Clear the screen by setting all tiles to 0 (background)
+    for (uint8_t x = 0; x < 32; x++)
+    {
+        for (uint8_t y = 0; y < 24; y++)
+        {
+            SMS_setNextTileatXY(x, y);
+            SMS_setTile(0);
+        }
+    }
+
+    // Rectangle position (in tile coordinates: 32x24 screen)
+    uint8_t rect_tile_x = 6; // Starting position
+    uint8_t rect_tile_y = 6; // Starting position
+    uint8_t old_tile_x = rect_tile_x;
+    uint8_t old_tile_y = rect_tile_y;
+
+    uint8_t frame_counter = 0;
+    uint8_t hit_edge = 0;
+
+    while (1)
+    {
+        SMS_waitForVBlank();
+
+        // Move rectangle every 3 frames for visible movement
+        frame_counter++;
+        if (frame_counter >= 3)
+        {
+            frame_counter = 0;
+
+            // Clear old rectangle position (4x2 tiles = 32x16 pixels)
+            for (uint8_t x = 0; x < 4; x++)
+            {
+                for (uint8_t y = 0; y < 2; y++)
+                {
+                    SMS_setNextTileatXY(old_tile_x + x, old_tile_y + y);
+                    SMS_setTile(0); // Clear with background tile
+                }
+            }
+
+            // Update position
+            old_tile_x = rect_tile_x;
+            old_tile_y = rect_tile_y;
+
+            rect_tile_x += velocity_x;
+            rect_tile_y += velocity_y;
+
+            // Check boundaries (screen is 32x24 tiles, rectangle is 4x2)
+            hit_edge = 0;
+            if (rect_tile_x <= 0)
+            {
+                rect_tile_x = 0;
+                velocity_x = -velocity_x;
+                hit_edge = 1;
+            }
+            else if (rect_tile_x >= 32 - 4)
+            {
+                rect_tile_x = 32 - 4;
+                velocity_x = -velocity_x;
+                hit_edge = 1;
+            }
+
+            if (rect_tile_y <= 0)
+            {
+                rect_tile_y = 0;
+                velocity_y = -velocity_y;
+                hit_edge = 1;
+            }
+            else if (rect_tile_y >= 24 - 2)
+            {
+                rect_tile_y = 24 - 2;
+                velocity_y = -velocity_y;
+                hit_edge = 1;
+            }
+
+            // Change color on edge hit
+            if (hit_edge)
+            {
+                rect_color = (rect_color + 1) % 7;
+                SMS_setBGPaletteColor(1, colors[rect_color]);
+            }
+
+            // Check for corner hit
+            if ((rect_tile_x == 0 || rect_tile_x == 32 - 4) &&
+                (rect_tile_y == 0 || rect_tile_y == 24 - 2))
+            {
+                flash_timer = 30; // Flash for 30 frames
+            }
+
+            // Handle yellow flash effect on corner hit
+            if (flash_timer > 0)
+            {
+                SMS_setBackdropColor(RGB(3, 3, 0)); // Yellow background
+                flash_timer--;
+            }
+            else
+            {
+                SMS_setBackdropColor(RGB(0, 0, 0)); // Black background
+            }
+
+            // Draw rectangle at new position
+            for (uint8_t x = 0; x < 4; x++)
+            {
+                for (uint8_t y = 0; y < 2; y++)
+                {
+                    SMS_setNextTileatXY(rect_tile_x + x, rect_tile_y + y);
+                    SMS_setTile(1); // Draw with white tile
+                }
+            }
+        }
+    }
+}
+
+SMS_EMBED_SEGA_ROM_HEADER(9999, 0);

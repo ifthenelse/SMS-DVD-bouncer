@@ -1,20 +1,6 @@
 #include <stdint.h>
 #include "SMSlib.h"
 
-// Rectangle properties
-#define RECT_WIDTH 32
-#define RECT_HEIGHT 16
-#define SCREEN_WIDTH 256
-#define SCREEN_HEIGHT 192
-
-// Rectangle state
-int16_t rect_x = 50;     // Starting X position
-int16_t rect_y = 50;     // Starting Y position
-int8_t velocity_x = 2;   // X velocity (45 degree movement)
-int8_t velocity_y = 2;   // Y velocity (45 degree movement)
-uint8_t rect_color = 0;  // Current rectangle color index
-uint8_t flash_timer = 0; // Timer for yellow flash effect
-
 // Color palette for rectangle cycling
 const uint8_t colors[] = {
     RGB(3, 3, 3), // White
@@ -28,44 +14,116 @@ const uint8_t colors[] = {
 
 void main(void)
 {
-    // Initialize the system - this approach will definitely work
     SMS_VRAMmemsetW(0, 0x0000, 16384);
-    SMS_autoSetUpTextRenderer(); // This we know works from our test
+    SMS_autoSetUpTextRenderer();
+    SMS_printatXY(6, 1, "SMS DVD BOUNCER");
+    SMS_setBackdropColor(RGB(0, 0, 0)); // Black background
 
-    // Start with something we know is visible
-    SMS_printatXY(8, 10, "BOUNCER TEST");
-    SMS_printatXY(8, 12, "COLORS:");
+// Rectangle properties (4x2 characters = 32x16 pixels)
+#define RECT_W 4
+#define RECT_H 2
 
-    // Simple animation loop - change background color to show it's running
-    uint8_t color_cycle = 0;
-    uint8_t frame_counter = 0; // Move this outside static
-    const uint8_t bg_colors[] = {
-        RGB(3, 0, 0), // Red
-        RGB(0, 3, 0), // Green
-        RGB(0, 0, 3), // Blue
-        RGB(3, 3, 0)  // Yellow
-    };
-    const char *color_names[] = {"RED  ", "GREEN", "BLUE ", "YELLOW"};
+    // Bouncing rectangle variables
+    uint8_t rect_x = 14; // Starting position
+    uint8_t rect_y = 10;
+    uint8_t old_x = rect_x;
+    uint8_t old_y = rect_y;
+    int8_t vel_x = 1; // 45-degree movement
+    int8_t vel_y = 1;
+    uint8_t frame_count = 0;
+    uint8_t color_idx = 0;
+    uint8_t flash_timer = 0;
+
+    // Set initial rectangle color
+    SMS_setBGPaletteColor(1, colors[color_idx]);
 
     while (1)
     {
         SMS_waitForVBlank();
 
-        // Every 30 frames (0.5 second), change background color
-        frame_counter++;
-        if (frame_counter >= 30)
+        // Update every 6 frames for smooth movement
+        frame_count++;
+        if (frame_count >= 6)
         {
-            frame_counter = 0;
-            color_cycle = (color_cycle + 1) % 4;
+            frame_count = 0;
 
-            // Set backdrop color
-            SMS_setBackdropColor(bg_colors[color_cycle]);
+            // Clear old rectangle
+            for (uint8_t x = 0; x < RECT_W; x++)
+            {
+                for (uint8_t y = 0; y < RECT_H; y++)
+                {
+                    SMS_printatXY(old_x + x, old_y + y, " ");
+                }
+            }
 
-            // Also change text background palette to make it more visible
-            SMS_setBGPaletteColor(0, bg_colors[color_cycle]);
+            // Update position
+            old_x = rect_x;
+            old_y = rect_y;
+            rect_x += vel_x;
+            rect_y += vel_y;
 
-            // Update the color name text
-            SMS_printatXY(15, 12, color_names[color_cycle]);
+            // Edge collision detection with color change
+            uint8_t hit_edge = 0;
+
+            if (rect_x <= 0)
+            {
+                rect_x = 0;
+                vel_x = -vel_x;
+                hit_edge = 1;
+            }
+            else if (rect_x >= 32 - RECT_W)
+            {
+                rect_x = 32 - RECT_W;
+                vel_x = -vel_x;
+                hit_edge = 1;
+            }
+
+            if (rect_y <= 3)
+            { // Avoid title
+                rect_y = 3;
+                vel_y = -vel_y;
+                hit_edge = 1;
+            }
+            else if (rect_y >= 24 - RECT_H)
+            {
+                rect_y = 24 - RECT_H;
+                vel_y = -vel_y;
+                hit_edge = 1;
+            }
+
+            // Change color on edge hit
+            if (hit_edge)
+            {
+                color_idx = (color_idx + 1) % 7;
+                SMS_setBGPaletteColor(1, colors[color_idx]);
+            }
+
+            // Corner detection - flash yellow background
+            if ((rect_x == 0 || rect_x == 32 - RECT_W) &&
+                (rect_y == 3 || rect_y == 24 - RECT_H))
+            {
+                flash_timer = 25; // Flash for ~0.4 seconds
+            }
+
+            // Handle flash effect
+            if (flash_timer > 0)
+            {
+                SMS_setBackdropColor(RGB(3, 3, 0)); // Yellow flash
+                flash_timer--;
+            }
+            else
+            {
+                SMS_setBackdropColor(RGB(0, 0, 0)); // Black background
+            }
+
+            // Draw rectangle (4x2 block of solid characters)
+            for (uint8_t x = 0; x < RECT_W; x++)
+            {
+                for (uint8_t y = 0; y < RECT_H; y++)
+                {
+                    SMS_printatXY(rect_x + x, rect_y + y, "#");
+                }
+            }
         }
     }
 }
