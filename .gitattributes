@@ -1,0 +1,2 @@
+# Mark Sega ROMs as binary: disable EOL normalization and diffs
+*.sms binary
