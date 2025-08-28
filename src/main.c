@@ -3,16 +3,20 @@
 
 void main(void)
 {
-    /* Clear VRAM first - this is crucial */
+    /* Clear VRAM first */
     SMS_VRAMmemsetW(0, 0x0000, 16384);
 
-    /* Set up text renderer (initializes palettes and display) */
+    /* Set up text renderer (loads font, sets up palettes, turns on display) */
     SMS_autoSetUpTextRenderer();
 
-    /* Set backdrop to bright red */
+    /* Print test message */
+    SMS_printatXY(8, 10, "SMS DVD BOUNCER");
+    SMS_printatXY(10, 12, "WORKING!");
+
+    /* Set backdrop color to bright red (should show around the edges) */
     SMS_setBackdropColor(RGB(3, 0, 0));
 
-    /* Do nothing - just display red screen */
+    /* Infinite loop */
     for (;;)
     {
     }
