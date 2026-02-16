@@ -1,6 +1,7 @@
 #ifndef DVD_LOGO_H
 #define DVD_LOGO_H
 
+/* Auto-generated 1bpp sprite tile data derived from assets/DVD-Video_Logo.png. */
 #define DVD_LOGO_TILE_W 8
 #define DVD_LOGO_TILE_H 4
 #define DVD_LOGO_TILE_COUNT (DVD_LOGO_TILE_W * DVD_LOGO_TILE_H)
