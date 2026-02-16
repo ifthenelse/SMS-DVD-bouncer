@@ -1,0 +1,20 @@
+name: C Lint
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  cppcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+
+      - name: Run lint
+        run: make lint

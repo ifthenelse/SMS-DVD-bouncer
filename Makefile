@@ -1,6 +1,7 @@
 DEVKITSMS ?= $(HOME)/devkitSMS
 SDCC      ?= sdcc
 CC        ?= cc
+CPPCHECK  ?= cppcheck
 
 TARGET = dvd_bouncer
 BUILD  = build
@@ -8,6 +9,7 @@ SRC    = src
 OBJS   = $(BUILD)/main.rel
 IHX2SMS_LOCAL = $(BUILD)/ihx2sms_local
 IHX2SMS_SRC   = $(wildcard $(DEVKITSMS)/ihx2sms/src/*.c)
+LINT_SOURCES  = $(wildcard $(SRC)/*.c)
 
 # Match SMSlib's build flags (IY reserved + peep rules) and include dirs
 CFLAGS = -mz80 --opt-code-speed \
@@ -19,7 +21,18 @@ CFLAGS = -mz80 --opt-code-speed \
 # Add proper linker flags for SMS (match official examples)
 LFLAGS = -mz80 --no-std-crt0 --data-loc 0xC000
 
-.PHONY: all clean
+CPPCHECK_FLAGS = \
+	--enable=warning,style,performance,portability \
+	--std=c99 \
+	--error-exitcode=1 \
+	--quiet \
+	--force \
+	--suppress=missingInclude \
+	--suppress=missingIncludeSystem \
+	-D__sfr= \
+	-D'__at(x)='
+
+.PHONY: all clean lint
 
 all: $(BUILD)/$(TARGET).sms
 
@@ -44,6 +57,13 @@ $(IHX2SMS_LOCAL): $(IHX2SMS_SRC) | $(BUILD)
 # ihx -> sms
 $(BUILD)/$(TARGET).sms: $(BUILD)/$(TARGET).ihx $(IHX2SMS_LOCAL)
 	$(IHX2SMS_LOCAL) $< $@
+
+lint:
+	@command -v $(CPPCHECK) >/dev/null 2>&1 || { \
+		echo "cppcheck is required for linting. Install with: brew install cppcheck"; \
+		exit 1; \
+	}
+	$(CPPCHECK) $(CPPCHECK_FLAGS) $(LINT_SOURCES)
 
 clean:
 	rm -rf $(BUILD)
