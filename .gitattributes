@@ -1,2 +1,15 @@
-# Mark Sega ROMs as binary: disable EOL normalization and diffs
+# Normalize text files to LF in-repo
+* text=auto eol=lf
+
+# Project text assets
+*.tssms text eol=lf
+*.svg text eol=lf
+
+# Binary assets/artifacts
 *.sms binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.wav binary

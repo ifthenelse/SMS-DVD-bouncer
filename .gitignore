@@ -1,3 +1,16 @@
+# Session/history tooling
+.specstory/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editor swap/temp files
+*~
+*.swp
+*.swo
+
+# SDCC/linker outputs
 *.ihx
 *.lk
 *.map
@@ -6,3 +19,6 @@
 *.rel
 *.sym
 *.asm
+
+# Local helper binaries generated during build
+build/ihx2sms_local
