@@ -5,28 +5,33 @@
 
 #define SCREEN_TILE_W 32
 #define SCREEN_TILE_H 24
-#define LOGO_TILE_BASE 1
-#define LOGO_MAX_X (SCREEN_TILE_W - DVD_LOGO_TILE_W)
-#define LOGO_MAX_Y (SCREEN_TILE_H - DVD_LOGO_TILE_H)
+#define SCREEN_PIXEL_W 256
+#define SCREEN_PIXEL_H 192
+
+#define LOGO_TILE_BASE 128
+#define LOGO_PIXEL_W (DVD_LOGO_TILE_W * 8)
+#define LOGO_PIXEL_H (DVD_LOGO_TILE_H * 8)
+#define LOGO_MAX_X (SCREEN_PIXEL_W - LOGO_PIXEL_W)
+#define LOGO_MAX_Y (SCREEN_PIXEL_H - LOGO_PIXEL_H)
 
 #define TILE_EMPTY 0
 
 #define PALETTE_BG 0
 #define PALETTE_LOGO 1
-#define PALETTE_FLASH 15
 
 #define HEARTBEAT_PERIOD 24
-#define MOVE_PERIOD 10
+#define MOVE_PERIOD 2
 #define FLASH_FRAMES 14
-#define BEEP_FRAMES 18
 
-#define PSG_CH0_TONE_LATCH 0x80
-#define PSG_CH0_VOL_LATCH 0x90
+#define WALL_HIT_SOUND_FRAMES 10
+#define PSG_NOISE_LATCH 0xE0
+#define PSG_NOISE_WHITE_DIV2048 0x06
+#define PSG_CH3_VOL_LATCH 0xF0
 #define PSG_VOL_SILENT 0x0F
 
 __sfr __at (0x7F) PSGPort;
 
-static const unsigned char rect_colors[] = {
+static const unsigned char logo_colors[] = {
     RGB(3, 3, 3),
     RGB(3, 0, 0),
     RGB(0, 3, 0),
@@ -35,69 +40,66 @@ static const unsigned char rect_colors[] = {
     RGB(3, 0, 3),
     RGB(0, 3, 3)};
 
-#define RECT_COLOR_COUNT 7
+#define LOGO_COLOR_COUNT 7
 
-static void draw_logo(unsigned char x, unsigned char y, bool visible) {
+static void draw_logo_sprites(unsigned char x, unsigned char y) {
     unsigned char tx;
     unsigned char ty;
     unsigned int tile;
 
     for (ty = 0; ty < DVD_LOGO_TILE_H; ++ty) {
         for (tx = 0; tx < DVD_LOGO_TILE_W; ++tx) {
-            tile = visible ? (LOGO_TILE_BASE + (ty * DVD_LOGO_TILE_W) + tx) : TILE_EMPTY;
-            SMS_setTileatXY(x + tx, y + ty, tile);
+            tile = LOGO_TILE_BASE + (ty * DVD_LOGO_TILE_W) + tx;
+            SMS_addSprite(x + (tx * 8), y + (ty * 8), tile);
         }
     }
 }
 
-static void start_corner_beep(unsigned char *beep_timer) {
-    const unsigned int tone_period = 0x120;
-
-    PSGPort = PSG_CH0_TONE_LATCH | (tone_period & 0x0F);
-    PSGPort = (tone_period >> 4) & 0x3F;
-    PSGPort = PSG_CH0_VOL_LATCH | 0x00;
-    *beep_timer = BEEP_FRAMES;
+static void start_wall_hit_sound(unsigned char *sound_timer) {
+    PSGPort = PSG_NOISE_LATCH | PSG_NOISE_WHITE_DIV2048;
+    PSGPort = PSG_CH3_VOL_LATCH | 0x02;
+    *sound_timer = WALL_HIT_SOUND_FRAMES;
 }
 
-static void update_corner_beep(unsigned char *beep_timer) {
-    if (*beep_timer == 0) {
+static void update_wall_hit_sound(unsigned char *sound_timer) {
+    if (*sound_timer == 0) {
         return;
     }
 
-    --(*beep_timer);
-    if (*beep_timer == BEEP_FRAMES - 6) {
-        PSGPort = PSG_CH0_VOL_LATCH | 0x04;
-    } else if (*beep_timer == BEEP_FRAMES - 12) {
-        PSGPort = PSG_CH0_VOL_LATCH | 0x08;
-    } else if (*beep_timer == 0) {
-        PSGPort = PSG_CH0_VOL_LATCH | PSG_VOL_SILENT;
+    --(*sound_timer);
+    if (*sound_timer == 7) {
+        PSGPort = PSG_CH3_VOL_LATCH | 0x05;
+    } else if (*sound_timer == 4) {
+        PSGPort = PSG_CH3_VOL_LATCH | 0x08;
+    } else if (*sound_timer == 0) {
+        PSGPort = PSG_CH3_VOL_LATCH | PSG_VOL_SILENT;
     }
 }
 
 void main(void) {
     unsigned char x;
     unsigned char y;
-    signed char logo_x = 11;
-    signed char logo_y = 10;
-    signed char old_x = logo_x;
-    signed char old_y = logo_y;
+    int16_t logo_x = 96;
+    int16_t logo_y = 80;
     signed char velocity_x = 1;
     signed char velocity_y = 1;
     unsigned char color_index = 0;
     unsigned char heartbeat_counter = 0;
     unsigned char move_counter = 0;
+    unsigned char wall_hit_sound_timer = 0;
     bool heartbeat_on = false;
     unsigned char flash_timer = 0;
-    unsigned char beep_timer = 0;
 
     SMS_displayOff();
+    SMS_useFirstHalfTilesforSprites(1);
+    SMS_setSpriteMode(SPRITEMODE_NORMAL);
     SMS_VRAMmemsetW(0, 0x0000, 16384);
     SMS_load1bppTiles(dvd_logo_1bpp, LOGO_TILE_BASE, sizeof(dvd_logo_1bpp), 0, PALETTE_LOGO);
 
     SMS_setBGPaletteColor(PALETTE_BG, RGB(0, 0, 0));
-    SMS_setBGPaletteColor(PALETTE_LOGO, rect_colors[color_index]);
-    SMS_setBGPaletteColor(PALETTE_FLASH, RGB(3, 3, 0));
-    SMS_setBackdropColor(PALETTE_BG);
+    SMS_setSpritePaletteColor(0, RGB(0, 0, 0));
+    SMS_setSpritePaletteColor(PALETTE_LOGO, logo_colors[color_index]);
+    PSGPort = PSG_CH3_VOL_LATCH | PSG_VOL_SILENT;
 
     for (y = 0; y < SCREEN_TILE_H; ++y) {
         for (x = 0; x < SCREEN_TILE_W; ++x) {
@@ -105,8 +107,9 @@ void main(void) {
         }
     }
 
-    draw_logo((unsigned char)logo_x, (unsigned char)logo_y, true);
-    PSGPort = PSG_CH0_VOL_LATCH | PSG_VOL_SILENT;
+    SMS_initSprites();
+    draw_logo_sprites((unsigned char)logo_x, (unsigned char)logo_y);
+    SMS_copySpritestoSAT();
     SMS_displayOn();
 
     for (;;) {
@@ -119,28 +122,25 @@ void main(void) {
         if (heartbeat_counter >= HEARTBEAT_PERIOD) {
             heartbeat_counter = 0;
             heartbeat_on = !heartbeat_on;
-            if (flash_timer == 0) {
-                SMS_setBGPaletteColor(PALETTE_BG, heartbeat_on ? RGB(0, 0, 1) : RGB(0, 0, 0));
-            }
         }
 
         if (flash_timer > 0) {
-            SMS_setBackdropColor(PALETTE_FLASH);
             --flash_timer;
-            if (flash_timer == 0) {
-                SMS_setBackdropColor(PALETTE_BG);
-            }
+            SMS_setBGPaletteColor(PALETTE_BG, RGB(3, 3, 0));
+        } else {
+            SMS_setBGPaletteColor(PALETTE_BG, heartbeat_on ? RGB(0, 0, 1) : RGB(0, 0, 0));
         }
 
-        update_corner_beep(&beep_timer);
+        update_wall_hit_sound(&wall_hit_sound_timer);
 
         ++move_counter;
         if (move_counter < MOVE_PERIOD) {
+            SMS_initSprites();
+            draw_logo_sprites((unsigned char)logo_x, (unsigned char)logo_y);
+            SMS_copySpritestoSAT();
             continue;
         }
         move_counter = 0;
-
-        draw_logo((unsigned char)old_x, (unsigned char)old_y, false);
 
         logo_x += velocity_x;
         logo_y += velocity_y;
@@ -167,20 +167,20 @@ void main(void) {
 
         if (hit_x || hit_y) {
             ++color_index;
-            if (color_index >= RECT_COLOR_COUNT) {
+            if (color_index >= LOGO_COLOR_COUNT) {
                 color_index = 0;
             }
-            SMS_setBGPaletteColor(PALETTE_LOGO, rect_colors[color_index]);
+            SMS_setSpritePaletteColor(PALETTE_LOGO, logo_colors[color_index]);
+            start_wall_hit_sound(&wall_hit_sound_timer);
         }
 
         if (hit_x && hit_y) {
             flash_timer = FLASH_FRAMES;
-            start_corner_beep(&beep_timer);
         }
 
-        draw_logo((unsigned char)logo_x, (unsigned char)logo_y, true);
-        old_x = logo_x;
-        old_y = logo_y;
+        SMS_initSprites();
+        draw_logo_sprites((unsigned char)logo_x, (unsigned char)logo_y);
+        SMS_copySpritestoSAT();
     }
 }
 
