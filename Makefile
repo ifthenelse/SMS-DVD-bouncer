@@ -1,13 +1,17 @@
 DEVKITSMS ?= $(HOME)/devkitSMS
 SDCC      ?= sdcc
+CC        ?= cc
 
 TARGET = dvd_bouncer
 BUILD  = build
 SRC    = src
 OBJS   = $(BUILD)/main.rel
+IHX2SMS_LOCAL = $(BUILD)/ihx2sms_local
+IHX2SMS_SRC   = $(wildcard $(DEVKITSMS)/ihx2sms/src/*.c)
 
 # Match SMSlib's build flags (IY reserved + peep rules) and include dirs
 CFLAGS = -mz80 --opt-code-speed \
+  --no-optsdcc-in-asm \
   --reserve-regs-iy \
   --peep-file $(DEVKITSMS)/SMSlib/src/peep-rules.txt \
   -I$(DEVKITSMS)/SMSlib -I$(DEVKITSMS)/SMSlib/src
@@ -33,9 +37,13 @@ $(BUILD)/$(TARGET).ihx: $(OBJS)
 	  $(DEVKITSMS)/SMSlib/SMSlib.lib \
 	  -o $@
 
-# ihx -> sms (use locally compiled version)
-$(BUILD)/$(TARGET).sms: $(BUILD)/$(TARGET).ihx
-	$(DEVKITSMS)/ihx2sms/ihx2sms_local $< $@
+# Build ihx2sms locally so conversion works on macOS even when devkitSMS ships only Linux binaries.
+$(IHX2SMS_LOCAL): $(IHX2SMS_SRC) | $(BUILD)
+	$(CC) -O2 -std=c99 $(IHX2SMS_SRC) -o $@
+
+# ihx -> sms
+$(BUILD)/$(TARGET).sms: $(BUILD)/$(TARGET).ihx $(IHX2SMS_LOCAL)
+	$(IHX2SMS_LOCAL) $< $@
 
 clean:
 	rm -rf $(BUILD)
