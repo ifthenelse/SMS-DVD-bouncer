@@ -1,21 +1,18 @@
 {
   "folders": [
     {
-      "path": "."
+      "path": ".",
     },
-    {
-      "path": "../../devkitSMS"
-    }
   ],
   "settings": {
     "files.associations": {
-      "SMSlib.h": "c"
-    }
+      "SMSlib.h": "c",
+    },
   },
   "extensions": {
     "recommendations": [
       "ms-vscode.cpptools-extension-pack",
-      "ms-vscode.cmake-tools"
-    ]
-  }
+      "ms-vscode.cmake-tools",
+    ],
+  },
 }
