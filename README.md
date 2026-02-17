@@ -1,5 +1,7 @@
 # SMS DVD Bouncer (Sega Master System)
 
+![sms-dvd-bouncer](https://github.com/user-attachments/assets/2c38d1d8-da93-4375-80a0-7499a893045b)
+
 Small Sega Master System demo: a DVD logo bounces at 45° across the screen, changes color on wall hits, and on corner hits it flashes the background.
 
 This repo is being developed on macOS with **SDCC + devkitSMS + SMSlib** and tested on:
